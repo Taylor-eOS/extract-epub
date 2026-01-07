@@ -38,14 +38,39 @@ def extract_text_from_epub(epub_path, output_folder):
     print(f"Extracted text from: {epub_filename}")
 
 def main():
-    epub_folder = input('Input folder:')
-    os.makedirs(output_folder, exist_ok=True)
-    epub_files = [os.path.join(epub_folder, f) for f in os.listdir(epub_folder) if f.endswith('.epub')]
-    if not epub_files:
-        print("No EPUB files found")
+    epub_folder = input("Input folder: ").strip()
+    if not os.path.isdir(epub_folder):
+        print("The provided path is not a valid folder")
         return
-    for epub_file in epub_files:
-        extract_text_from_epub(epub_file, output_folder)
+    os.makedirs(output_folder, exist_ok=True)
+    epub_files = [f for f in os.listdir(epub_folder) if f.lower().endswith(".epub")]
+    if not epub_files:
+        print("No EPUB files found in the folder")
+        return
+    epub_files.sort(key=str.lower)
+    full_paths = [os.path.join(epub_folder, f) for f in epub_files]
+    print("\nFound EPUB files:")
+    for index, filename in enumerate(epub_files, start=1):
+        print(f"{index}. {filename}")
+    while True:
+        choice = input(
+            "\nEnter the number of the file to convert (or press Enter to quit): "
+        ).strip()
+        if choice == "":
+            print("No file selected, exiting")
+            return
+        if choice.isdigit():
+            num = int(choice)
+            if 1 <= num <= len(epub_files):
+                selected_path = full_paths[num - 1]
+                selected_name = epub_files[num - 1]
+                print(f"Converting: {selected_name}")
+                extract_text_from_epub(selected_path, output_folder)
+                return
+            else:
+                print("Number out of range, please try again")
+        else:
+            print("Please enter a valid number")
 
 if __name__ == "__main__":
     main()
