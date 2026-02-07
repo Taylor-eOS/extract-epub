@@ -1,6 +1,30 @@
 import os
 from bs4 import BeautifulSoup
 
+def natural_key(s):
+    parts = []
+    buf = ""
+    is_digit = False
+    for c in s:
+        if c.isdigit():
+            if not is_digit:
+                if buf:
+                    parts.append(buf.lower())
+                buf = c
+                is_digit = True
+            else:
+                buf += c
+        else:
+            if is_digit:
+                parts.append(int(buf))
+                buf = c
+                is_digit = False
+            else:
+                buf += c
+    if buf:
+        parts.append(int(buf) if is_digit else buf.lower())
+    return parts
+
 folder_path = input('Enter the folder path (default "input"): ').strip().strip('"\'') or 'input'
 output_file = folder_path + "_output.html"
 combined_html = """<!DOCTYPE html>
@@ -16,7 +40,7 @@ combined_html = """<!DOCTYPE html>
 soup = BeautifulSoup(combined_html, 'html.parser')
 body = soup.body
 html_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.html', '.xhtml'))]
-html_files.sort()
+html_files.sort(key=natural_key)
 header_used = False
 
 for filename in html_files:
