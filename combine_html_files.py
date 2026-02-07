@@ -15,7 +15,7 @@ combined_html = """<!DOCTYPE html>
 </html>"""
 soup = BeautifulSoup(combined_html, 'html.parser')
 body = soup.body
-html_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.html', '.htm'))]
+html_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.html', '.xhtml'))]
 html_files.sort()
 header_used = False
 
