@@ -1,7 +1,7 @@
 import os
 from bs4 import BeautifulSoup
 
-folder_path = input("Enter the folder path: ").strip().strip('"\'')
+folder_path = input('Enter the folder path (default "input"): ').strip().strip('"\'') or 'input'
 output_file = folder_path + "_output.html"
 combined_html = """<!DOCTYPE html>
 <html lang="en">
