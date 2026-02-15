@@ -151,7 +151,7 @@ def prepare_base_soup(folder_path, html_files):
     base_soup.body.clear()
     return base_soup
 
-def process_file_content(file_path):
+def process_file_content(file_path, insert_chapter_markers=False):
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
     file_soup = BeautifulSoup(content, 'html.parser')
@@ -160,15 +160,19 @@ def process_file_content(file_path):
         parent = img.parent
         img.decompose()
         clean_empty_parents(parent)
+    if insert_chapter_markers:
+        for heading in file_soup.body.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+            marker = file_soup.new_string('[chapter] ')
+            heading.insert(0, marker)
     inner_content = file_soup.body.decode_contents()
     return inner_content
 
-def combine_html_files(folder_path, html_files, base_soup):
+def combine_html_files(folder_path, html_files, base_soup, insert_chapter_markers=False):
     body = base_soup.body
     for filename in html_files:
         file_path = os.path.join(folder_path, filename)
         try:
-            inner_content = process_file_content(file_path)
+            inner_content = process_file_content(file_path, insert_chapter_markers)
             if inner_content.strip():
                 fragment = BeautifulSoup(inner_content, 'html.parser')
                 body.extend(list(fragment.children))
@@ -180,6 +184,8 @@ def main():
     if not os.path.isdir(folder_path):
         print("The path is not a valid folder.")
         return
+    marker_input = input('Insert [chapter] markers before headings? (y/n, default n): ').strip().lower()
+    insert_chapter_markers = marker_input == 'y'
     output_file = folder_path + "_output.html"
     html_files, stopped_due_to_mismatch = determine_file_order(folder_path)
     if stopped_due_to_mismatch:
@@ -192,7 +198,7 @@ def main():
     if base_soup is None:
         print("Could not read any HTML files.")
         return
-    combine_html_files(folder_path, html_files, base_soup)
+    combine_html_files(folder_path, html_files, base_soup, insert_chapter_markers)
     with open(output_file, 'w', encoding='utf-8') as out:
         out.write(base_soup.prettify())
     print(f"Combined HTML saved to {output_file}")
