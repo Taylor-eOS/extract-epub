@@ -78,7 +78,7 @@ def parse_opf_for_order(opf_path, folder_path):
             filename = manifest_dict.get(idref)
             if filename and filename not in seen:
                 file_path = os.path.join(folder_path, filename)
-                if os.path.isfile(file_path) and filename.lower().endswith(('.html', '.xhtml')):
+                if os.path.isfile(file_path) and filename.lower().endswith(('.html', '.xhtml', '.htm')):
                     ordered_files.append(filename)
                     seen.add(filename)
         return ordered_files
@@ -87,7 +87,7 @@ def parse_opf_for_order(opf_path, folder_path):
         return []
 
 def get_all_html_files(folder_path):
-    html_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.html', '.xhtml'))]
+    html_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.html', '.xhtml', '.htm'))]
     html_files.sort(key=natural_key)
     return html_files
 
