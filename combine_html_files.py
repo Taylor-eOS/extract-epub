@@ -162,7 +162,7 @@ def process_file_content(file_path, insert_chapter_markers=False):
         clean_empty_parents(parent)
     if insert_chapter_markers:
         for heading in file_soup.body.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-            marker = file_soup.new_string('[chapter] ')
+            marker = file_soup.new_string('[chapter]')
             heading.insert(0, marker)
     inner_content = file_soup.body.decode_contents()
     return inner_content
@@ -184,7 +184,7 @@ def main():
     if not os.path.isdir(folder_path):
         print("The path is not a valid folder.")
         return
-    marker_input = input('Insert [chapter] markers before headings? (y/n, default n): ').strip().lower()
+    marker_input = input('Insert chapter markers before headings? (y/N): ').strip().lower()
     insert_chapter_markers = marker_input == 'y'
     output_file = folder_path + "_output.html"
     html_files, stopped_due_to_mismatch = determine_file_order(folder_path)
