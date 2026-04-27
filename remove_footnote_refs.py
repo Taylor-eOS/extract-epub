@@ -142,6 +142,9 @@ def score_span(span):
     years, pages = classify_numeric_tokens(numeric_tokens)
     word_tokens = extract_word_tokens(text)
     punct_classes = count_punctuation_classes(text)
+    latin_words = [w for w in word_tokens if looks_like_latin_abbreviation(w)]
+    if latin_words:
+        return ScoredSpan(span=span, score=1000.0, evidence=[f'latin citation abbreviation forces acceptance: {latin_words}'])
     if not numeric_tokens:
         return ScoredSpan(span=span, score=0.0, evidence=['no numeric content'])
     if years:
@@ -154,10 +157,6 @@ def score_span(span):
     if author_words:
         score += 20.0
         evidence.append(f'author-like capitalized words: {author_words}')
-    latin_words = [w for w in word_tokens if looks_like_latin_abbreviation(w)]
-    if latin_words:
-        score += 25.0
-        evidence.append(f'latin citation abbreviations: {latin_words}')
     if 'colon' in punct_classes:
         score += 10.0
         evidence.append('colon present (page separator)')
@@ -177,7 +176,6 @@ def score_span(span):
     if prose_chars > total_chars * 0.3:
         score -= 15.0
         evidence.append('high proportion of non-citation punctuation, likely prose')
-
     return ScoredSpan(span=span, score=score, evidence=evidence)
 
 def resolve_overlapping_spans(scored_spans):
