@@ -76,14 +76,58 @@ def extract_numeric_tokens(s):
         results.append(''.join(current))
     return results
 
+def extract_numeric_tokens_with_positions(s):
+    results = []
+    current = []
+    start = None
+    for i, ch in enumerate(s):
+        if ch.isdigit():
+            if start is None:
+                start = i
+            current.append(ch)
+        else:
+            if current:
+                results.append((''.join(current), start, i))
+                current = []
+                start = None
+    if current:
+        results.append((''.join(current), start, len(s)))
+    return results
+
 def classify_numeric_tokens(numeric_tokens):
+    return classify_numeric_tokens_from_text(None, numeric_tokens)
+
+def classify_numeric_tokens_from_text(text, numeric_tokens):
+    if text is None:
+        years = []
+        pages = []
+        for tok in numeric_tokens:
+            if len(tok) == 4:
+                n = int(tok)
+                if 1000 <= n <= 2100:
+                    years.append(n)
+                    continue
+            n = int(tok)
+            if 1 <= n <= 999:
+                pages.append(n)
+        return years, pages
+    tokens_with_pos = extract_numeric_tokens_with_positions(text)
     years = []
     pages = []
-    for tok in numeric_tokens:
+    dash_chars = {'-', '\u2013', '\u2014'}
+    skip_indices = set()
+    for i, (tok, start, end) in enumerate(tokens_with_pos):
+        if i in skip_indices:
+            continue
         if len(tok) == 4:
             n = int(tok)
             if 1000 <= n <= 2100:
                 years.append(n)
+                if i + 1 < len(tokens_with_pos):
+                    next_tok, next_start, next_end = tokens_with_pos[i + 1]
+                    between = text[end:next_start]
+                    if between and all(ch in dash_chars for ch in between) and len(next_tok) <= 4:
+                        skip_indices.add(i + 1)
                 continue
         n = int(tok)
         if 1 <= n <= 999:
@@ -130,52 +174,61 @@ def looks_like_latin_abbreviation(word):
     latin = {'ibid', 'op', 'cit', 'loc', 'et', 'al', 'idem', 'cf', 'viz', 'sic'}
     return word.lower() in latin
 
+CITATION_CONNECTIVES = {'and', 'see', 'also', 'in', 'cf', 'e', 'g', 'i', 'b', 'a'}
+
 def score_span(span):
     text = normalize(span.inner)
     score = 0.0
     evidence = []
     if not text:
         return ScoredSpan(span=span, score=0.0, evidence=['empty content'])
-    if len(text) > 150:
+    if len(text) > 200:
         return ScoredSpan(span=span, score=0.0, evidence=['too long to be a citation'])
     numeric_tokens = extract_numeric_tokens(text)
-    years, pages = classify_numeric_tokens(numeric_tokens)
+    years, pages = classify_numeric_tokens_from_text(text, numeric_tokens)
     word_tokens = extract_word_tokens(text)
     punct_classes = count_punctuation_classes(text)
     latin_words = [w for w in word_tokens if looks_like_latin_abbreviation(w)]
     if latin_words:
         return ScoredSpan(span=span, score=1000.0, evidence=[f'latin citation abbreviation forces acceptance: {latin_words}'])
-    if not numeric_tokens:
-        return ScoredSpan(span=span, score=0.0, evidence=['no numeric content'])
-    if years:
-        score += 40.0
-        evidence.append(f'contains year(s): {years}')
+    if not years:
+        return ScoredSpan(span=span, score=0.0, evidence=['no year present — required for citation'])
+    lowercase_words = [w for w in word_tokens if w[0].islower() and w.lower() not in CITATION_CONNECTIVES]
+    author_words = [w for w in word_tokens if looks_like_author_name(w)]
+    total_words = len(word_tokens)
+    lowercase_count = len(lowercase_words)
+    if total_words > 0:
+        lowercase_ratio = lowercase_count / total_words
+    else:
+        lowercase_ratio = 0.0
+    if lowercase_ratio > 0.35:
+        return ScoredSpan(span=span, score=0.0, evidence=[
+            f'too many lowercase words ({lowercase_count}/{total_words} = {lowercase_ratio:.0%}), looks like prose'
+        ])
+    if lowercase_count > 3:
+        return ScoredSpan(span=span, score=0.0, evidence=[
+            f'too many lowercase words in absolute terms ({lowercase_count}): {lowercase_words}'
+        ])
+    score += 40.0
+    evidence.append(f'contains year(s): {years}')
+    if not author_words and not pages:
+        return ScoredSpan(span=span, score=0.0, evidence=['year only, no author or page number — too ambiguous'])
+    if author_words:
+        score += 25.0
+        evidence.append(f'author-like capitalized words: {author_words}')
     if pages:
         score += 15.0
         evidence.append(f'contains page number(s): {pages}')
-    author_words = [w for w in word_tokens if looks_like_author_name(w)]
-    if author_words:
-        score += 20.0
-        evidence.append(f'author-like capitalized words: {author_words}')
     if 'colon' in punct_classes:
         score += 10.0
         evidence.append('colon present (page separator)')
     if 'semicolon' in punct_classes:
         score += 8.0
         evidence.append('semicolon present (citation list separator)')
-    total_chars = len(text)
-    alpha_chars = sum(1 for ch in text if ch.isalpha())
-    digit_chars = sum(1 for ch in text if ch.isdigit())
-    space_chars = sum(1 for ch in text if ch == ' ')
-    prose_chars = total_chars - alpha_chars - digit_chars - space_chars
-    word_count = len(word_tokens)
-    if word_count > 15:
-        penalty = (word_count - 15) * 3.0
+    if total_words > 12:
+        penalty = (total_words - 12) * 4.0
         score -= penalty
-        evidence.append(f'penalized for high word count ({word_count} words, -{penalty:.1f})')
-    if prose_chars > total_chars * 0.3:
-        score -= 15.0
-        evidence.append('high proportion of non-citation punctuation, likely prose')
+        evidence.append(f'penalized for high word count ({total_words} words, -{penalty:.1f})')
     return ScoredSpan(span=span, score=score, evidence=evidence)
 
 def resolve_overlapping_spans(scored_spans):
@@ -244,7 +297,6 @@ def process_file(path, threshold=40.0, dry_run=False):
     print(f"Written: {path}")
 
 if __name__ == '__main__':
-    path = input('Input file: ') or 'input.txt'
+    path = input('Input file (input.txt): ') or 'input.txt'
     dry_run = '--dry-run' in sys.argv
     process_file(path, dry_run=dry_run)
-
